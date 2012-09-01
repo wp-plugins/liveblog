@@ -1,0 +1,85 @@
+Add queue for AJAX events
+
+Backbone
+
+Updating/Deleting
+
+* On change:
+	= make the change (delete/update)
+	= add an entry about the change
+	= when the changed object and the event entry appear in the same result set – don't render the event entry
+* types of queriries
+	= initial
+		- we made the changes so we get the right content
+		- all entries are in the result set so the event entry one won't get rendered
+	= start is after the change – ok
+	= end is before the change
+		- a great chance it's cached - ok, because then at some point they'll get the event entry
+		- we will get the new information - edited/deleted post will be right and then will cache it, event entrys work well on already applied changes
+	= start is before change, end is after change
+		- we will get the event entry, which will be applied to the aghsjkdljk
+
+TODO:
+	* Race-conditions
+	* Test error saturation
+	* In-source TODOs
+	* JS Errors
+	* Separate admin
+	* Check for json_encode() result
+
+Problems
+	* Comments!!! are not posts
+
+Server
+
+	Requests
+
+	- ajax - post
+	- ajax - between
+	- post
+		= add content
+		= load scripts
+		= load form
+
+Liveblog
+
+	init
+
+	Config
+
+
+	EntriesList
+	* add
+	* update
+	* delete
+	* show
+
+	NewEntryevent entryication
+
+	Updater
+
+
+P2 POST
+
+Think what race-conditions can occur and how do we deal with them. For example now if a new entry is created in the same second after a client gets the recent entries, but after the response is sent, the client will never get the new entry
+ Test it on WordPress.com, because now it has all been developed locally
+ Test error slow-down
+ On the client side, instead of using the current time for end-timestamp, use the difference between now and the last response time and add it to the server time from the last response. These should eliminate most of the clock differences
+ Comment delettion
+ Show message if a live refresh is disabled and show click-to-enable
+ Show errors in a box near the nag, not via alerts
+ Clear TODOs in the source files
+ Highlight newly inserted posts
+These are for the bright future:
+
+ Preview
+ Comment modifications
+ Insert image support
+ Manual refresh button
+ Allow marking liveblog as disabled/ended
+ Get rid of our high-level status/message JSON protocol and use plain HTTP instead (@nbachiyski)
+ Extract the rest of the HTML from WPCOM_Liveblog into separate templates
+ Use WP_Error to propagate errors, instead of passing arguments to json_return() (@nbachiyski)
+ The JS could be a lot more structured
+ Add filters to make it more configurable. These are best determined with real-world usage
+

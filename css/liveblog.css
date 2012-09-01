@@ -1,0 +1,186 @@
+/* =Container
+-------------------------------------------------------------- */
+
+#liveblog-container {
+	margin: 10px 0;
+	width: 100%;
+	display: block;
+	position: relative;
+}
+
+/* =Form Actions
+-------------------------------------------------------------- */
+
+fieldset#liveblog-actions {
+	display: block;
+	padding: 5px 20px 20px 20px;
+	border-radius: 3px;
+	border: 1px solid #ccc;
+	background: rgb(255,255,255); /* Old browsers */
+	background: -moz-linear-gradient(top, rgba(255,255,255,1) 0%, rgba(243,243,243,1) 33%, rgba(237,237,237,1) 34%, rgba(255,255,255,1) 100%); /* FF3.6+ */
+	background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,rgba(255,255,255,1)), color-stop(33%,rgba(243,243,243,1)), color-stop(34%,rgba(237,237,237,1)), color-stop(100%,rgba(255,255,255,1))); /* Chrome,Safari4+ */
+	background: -webkit-linear-gradient(top, rgba(255,255,255,1) 0%,rgba(243,243,243,1) 33%,rgba(237,237,237,1) 34%,rgba(255,255,255,1) 100%); /* Chrome10+,Safari5.1+ */
+	background: -o-linear-gradient(top, rgba(255,255,255,1) 0%,rgba(243,243,243,1) 33%,rgba(237,237,237,1) 34%,rgba(255,255,255,1) 100%); /* Opera 11.10+ */
+	background: -ms-linear-gradient(top, rgba(255,255,255,1) 0%,rgba(243,243,243,1) 33%,rgba(237,237,237,1) 34%,rgba(255,255,255,1) 100%); /* IE10+ */
+	background: linear-gradient(to bottom, rgba(255,255,255,1) 0%,rgba(243,243,243,1) 33%,rgba(237,237,237,1) 34%,rgba(255,255,255,1) 100%); /* W3C */
+	filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#ffffff', endColorstr='#ffffff',GradientType=0 ); /* IE6-9 */
+}
+
+fieldset#liveblog-actions.uploading {
+	border: 1px solid #ccc;
+	background: #f6f8f9; /* Old browsers */
+	background: -moz-linear-gradient(top, #f6f8f9 0%, #e5ebee 33%, #d7dee3 34%, #f5f7f9 100%); /* FF3.6+ */
+	background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,#f6f8f9), color-stop(33%,#e5ebee), color-stop(34%,#d7dee3), color-stop(100%,#f5f7f9)); /* Chrome,Safari4+ */
+	background: -webkit-linear-gradient(top, #f6f8f9 0%,#e5ebee 34%,#d7dee3 34%,#f5f7f9 100%); /* Chrome10+,Safari5.1+ */
+	background: -o-linear-gradient(top, #f6f8f9 0%,#e5ebee 33%,#d7dee3 34%,#f5f7f9 100%); /* Opera 11.10+ */
+	background: -ms-linear-gradient(top, #f6f8f9 0%,#e5ebee 33%,#d7dee3 34%,#f5f7f9 100%); /* IE10+ */
+	background: linear-gradient(to bottom, #f6f8f9 0%,#e5ebee 33%,#d7dee3 34%,#f5f7f9 100%); /* W3C */
+	filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#f6f8f9', endColorstr='#f5f7f9',GradientType=0 ); /* IE6-9 */
+}
+
+fieldset#liveblog-actions legend {
+	padding: 5px;
+	background: transparent;
+}
+
+fieldset#liveblog-actions legend ul,
+fieldset#liveblog-actions legend li {
+	display: inline;
+	list-style-type: none;
+	margin: 0;
+}
+
+.ui-tabs-hide {
+	display: none;
+}
+.ui-tabs-selected a {
+	font-weight: bold;
+	font-size: 1.2em;
+	cursor: text;
+	color: #333;
+	text-decoration: none;
+}
+
+textarea#liveblog-form-entry {
+	display: inline-block;
+	background: #fff;
+	width: 98%;
+	height: 100px;
+	margin-bottom: 10px;
+	padding: 5px;
+	border-radius: 0;
+	border: 1px solid #ddd;
+	box-shadow: inset 1px 1px 1px 0px #f4f4f4;
+	outline-color: #acc;
+}
+
+textarea#liveblog-form-entry.drag-over {
+	background: #efe;
+	color: #333;
+}
+
+#liveblog-actions div.liveblog-submit-wrapper {
+	text-align: right;
+	position: relative;
+}
+
+input#liveblog-form-entry-submit {
+	margin: 0;
+}
+
+span#liveblog-submit-spinner {
+	padding: 0;
+	position: absolute;
+	top: 50%;
+	right: 50%;
+}
+
+/* =Feedback and Nags
+-------------------------------------------------------------- */
+
+.liveblog-message {
+	font: 13px "Helvetica Neue", sans-serif;
+	font-weight: 400;
+	padding: 7px 10px;
+	text-shadow: 1px 1px 0 #0074a2;
+	text-align: center;
+	border-radius: 3px;
+	margin-bottom: 5px;
+}
+
+.liveblog-nag {
+	display: block;
+	cursor: pointer;
+	background: #2ea2cc;
+	color: white;
+}
+
+.liveblog-hidden {
+	display: none;
+}
+
+/* =Entry Container
+-------------------------------------------------------------- */
+
+#liveblog-entries {
+	display: block;
+	padding: 10px 0 0 0;
+}
+
+.liveblog-loading {
+	color: #aaa;
+	background: #f9f9f9;
+	border: 1px solid #ddd;
+}
+
+/* =Single Entry
+-------------------------------------------------------------- */
+
+.liveblog-entry {
+	overflow: hidden;
+	margin: 0;
+	padding: 10px 0 0 0;
+	border-top: 1px solid #eee;
+}
+
+.liveblog-entry.highlight {
+	background-color: lightYellow;
+}
+
+.liveblog-entry .liveblog-entry-text {
+	font-size: 18px;
+	line-height: 22px;
+	padding: 10px 0 0;
+	margin-left: 40px;
+}
+
+.liveblog-entry .liveblog-meta .liveblog-author-name {
+	font-size: 15px;
+	line-height: 18px;
+}
+
+.liveblog-entry .liveblog-meta .liveblog-author-avatar {
+	float: left;
+	margin: 0 10px 0 0;
+}
+
+.liveblog-entry .liveblog-meta .liveblog-meta-time {
+	float: right;
+	margin-left: 10px;
+	font-size: 10px;
+	line-height: 12px;
+}
+
+.liveblog-meta-time a {
+	color: #888;
+	text-decoration: none;
+	text-transform: uppercase;
+}
+
+.liveblog-meta-time .time:before {
+	content: " - ";
+}
+
+.liveblog-entry .liveblog-entry-actions {
+	list-style-type: none;
+}
