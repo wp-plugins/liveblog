@@ -2,9 +2,12 @@
 
 /**
  * Plugin Name: Liveblog
+ * Plugin URI: http://wordpress.org/extend/plugins/liveblog/
  * Description: Blogging: at the speed of live.
  * Version:     1.0-beta
  * Author:      WordPress.com VIP, Automattic
+ * Author URI: http://vip.wordpress.com/
+ * Text Domain: liveblog
  */
 
 if ( ! class_exists( 'WPCOM_Liveblog' ) ) :
@@ -20,7 +23,7 @@ if ( ! class_exists( 'WPCOM_Liveblog' ) ) :
  * This class is a big container for a bunch of static methods, similar to a
  * factory but without object inheritance or instantiation.
  *
- * Things yet to be implimented:
+ * Things yet to be implemented:
  *
  * -- Change "Read More" to "View Liveblog"
  * -- Manual refresh button
@@ -31,7 +34,8 @@ final class WPCOM_Liveblog {
 
 	/** Constants *************************************************************/
 
-	const version          = 0.1;
+	const version          = '1.0-beta';
+	const rewrites_version = 1;
 	const key              = 'liveblog';
 	const url_endpoint     = 'liveblog';
 	const edit_cap         = 'publish_posts';
@@ -72,6 +76,10 @@ final class WPCOM_Liveblog {
 		// we need its filesize and available space functions.
 		if ( ! is_admin() && is_multisite() ) {
 			require_once( ABSPATH . 'wp-admin/includes/ms.php' );
+		}
+
+		if ( defined( 'WP_CLI' ) && WP_CLI ) {
+			require( dirname( __FILE__ ) . '/classes/class-wpcom-liveblog-wp-cli.php' );
 		}
 	}
 
@@ -125,20 +133,23 @@ final class WPCOM_Liveblog {
 	 */
 	public static function init() {
 
-		/**
-		 * Add a WordPress rewrite-rule enpoint.
-		 *
-		 * Looks like: /2012/01/01/post-name/liveblog/123456/
-		 *
-		 * where 123456 is a timestamp
-		 */
-		add_rewrite_endpoint( self::url_endpoint, EP_PERMALINK );
+		self::add_rewite_rules();
 
 		/**
 		 * Add liveblog support to the 'post' post type. This is done here so
 		 * we can possibly introduce this to other post types later.
 		 */
 		add_post_type_support( 'post', self::key );
+	}
+
+	public static function add_rewite_rules() {
+		add_rewrite_endpoint( self::url_endpoint, EP_PERMALINK );
+
+		if ( get_option( 'liveblog_rewrites_version' ) != self::rewrites_version ) {
+			flush_rewrite_rules();
+			update_option( 'liveblog_rewrites_version', self::rewrites_version );
+		}
+
 	}
 
 	/**
