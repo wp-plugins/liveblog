@@ -26,13 +26,13 @@
 	};
 
 	liveblog.publisher.preview_select = function( e, ui ) {
-		if (1 != ui.index) {
+		if (2 != ui.index) {
 			return;
 		}
 
 		var entry_content = liveblog.publisher.$entry_text.val();
 		if ( !entry_content ) {
-			return false;
+			return;
 		}
 
 		var data = {
@@ -43,7 +43,7 @@
 
 		liveblog.publisher.disable_posting_interface();
 		liveblog.publisher.$preview.html('Loading preview…');
-		liveblog.ajax_request( liveblog_settings.endpoint_url + '/preview', data, liveblog.publisher.preview_entry_success, liveblog.publisher.preview_entry_error, 'POST' );
+		liveblog.ajax_request( liveblog_settings.endpoint_url + 'preview', data, liveblog.publisher.preview_entry_success, liveblog.publisher.preview_entry_error, 'POST' );
 	};
 
 	liveblog.publisher.preview_entry_success = function( response ) {
@@ -85,7 +85,7 @@
 		data[ liveblog_settings.nonce_key ] = liveblog.publisher.$nonce.val();
 		liveblog.publisher.disable_posting_interface();
 		liveblog.publisher.show_spinner();
-		liveblog.ajax_request( liveblog_settings.endpoint_url + '/insert', data, liveblog.publisher.insert_entry_success, liveblog.publisher.insert_entry_error, 'POST' );
+		liveblog.ajax_request( liveblog_settings.endpoint_url + 'insert', data, liveblog.publisher.insert_entry_success, liveblog.publisher.insert_entry_error, 'POST' );
 	};
 
 	liveblog.publisher.insert_entry_success = function( response, status, xhr ) {
@@ -113,7 +113,7 @@
 		data[ liveblog_settings.nonce_key ] = liveblog.publisher.$nonce.val();
 		liveblog.publisher.disable_posting_interface();
 		liveblog.publisher.show_spinner();
-		liveblog.ajax_request( liveblog_settings.endpoint_url + '/insert', data, liveblog.publisher.insert_entry_success, liveblog.publisher.insert_entry_error, 'POST' );
+		liveblog.ajax_request( liveblog_settings.endpoint_url + 'insert', data, liveblog.publisher.insert_entry_success, liveblog.publisher.insert_entry_error, 'POST' );
 	};
 
 	liveblog.publisher.disable_posting_interface = function() {
