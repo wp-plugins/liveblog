@@ -8,7 +8,7 @@
  */
 class WPCOM_Liveblog_Entry_Query {
 
-	var $legacy_mode = false; // should we include backwards compat for 3.4?
+	var $wp_has_comment_approved_query_support = false;
 
 	/**
 	 * Set the post ID and key when a new object is created
@@ -17,14 +17,16 @@ class WPCOM_Liveblog_Entry_Query {
 	 * @param string $key
 	 */
 	public function __construct( $post_id, $key ) {
+		global $wp_version;
 		$this->post_id = $post_id;
 		$this->key     = $key;
 
-		// Backwards-compat for 3.4
-		if ( ! function_exists( 'get_edit_user_link' ) ) {
-			$this->legacy_mode = true;
+		$this->wp_has_comment_approved_query_support = version_compare( $wp_version, '3.5-alpha-21548' ) > 0;
+
+		if ( !$this->wp_has_comment_approved_query_support ) {
 			add_filter( 'comments_clauses', array( $this, '_comments_clauses' ) );
 		}
+
 	}
 
 	/**
@@ -39,14 +41,13 @@ class WPCOM_Liveblog_Entry_Query {
 			'orderby' => 'comment_date_gmt',
 			'order'   => 'DESC',
 			'type'    => $this->key,
+			/*
+			 * Even if the WordPress is 3.4 and doesn't support querying
+			 * arbitrary statuses, we include it so that it can be part of
+			 * the cache key
+			 */
+			'status'  => $this->key,
 		);
-
-		// 3.4 compat
-		if ( ! $this->legacy_mode ) {
-			$defaults['comment_approved'] = $this->key;
-		} else {
-			$defaults['status'] = $this->key; // just used to make the cache key more unique to avoid pollution
-		}
 
 		$args     = wp_parse_args( $args, $defaults );
 		$comments = get_comments( $args );
@@ -111,8 +112,8 @@ class WPCOM_Liveblog_Entry_Query {
 	 * @return array()
 	 */
 	public function get_between_timestamps( $start_timestamp, $end_timestamp ) {
-		$all_entries     = $this->get( array( 'order' => 'ASC' ) );
 		$entries_between = array();
+		$all_entries = $this->get_all_entries_asc();
 
 		foreach ( (array) $all_entries as $entry ) {
 			if ( $entry->get_timestamp() >= $start_timestamp && $entry->get_timestamp() <= $end_timestamp ) {
@@ -121,6 +122,17 @@ class WPCOM_Liveblog_Entry_Query {
 		}
 
 		return self::filter_liveblog_entries( $entries_between );
+	}
+
+	private function get_all_entries_asc() {
+		$cached_entries_asc_key =  $this->key . '_entries_asc_' . $this->post_id;
+		$cached_entries_asc = wp_cache_get( $cached_entries_asc_key, 'liveblog' );
+		if ( false !== $cached_entries_asc ) {
+			return $cached_entries_asc;
+		}
+		$all_entries_asc = $this->get( array( 'order' => 'ASC' ) );
+		wp_cache_set( $cached_entries_asc_key, $all_entries_asc, 'liveblog' );
+		return $all_entries_asc;
 	}
 
 	/**

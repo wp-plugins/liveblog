@@ -4,7 +4,7 @@
  * Plugin Name: Liveblog
  * Plugin URI: http://wordpress.org/extend/plugins/liveblog/
  * Description: Blogging: at the speed of live.
- * Version:     1.1
+ * Version:     1.2
  * Author:      WordPress.com VIP, Automattic
  * Author URI: http://vip.wordpress.com/
  * Text Domain: liveblog
@@ -34,14 +34,14 @@ final class WPCOM_Liveblog {
 
 	/** Constants *************************************************************/
 
-	const version          = '1.1';
+	const version          = '1.2';
 	const rewrites_version = 1;
 	const key              = 'liveblog';
 	const url_endpoint     = 'liveblog';
 	const edit_cap         = 'publish_posts';
 	const nonce_key        = 'liveblog_nonce';
 
-	const refresh_interval        = 3;   // how often should we refresh
+	const refresh_interval        = 10;   // how often should we refresh
 	const max_consecutive_retries = 100; // max number of failed tries before polling is disabled
 	const delay_threshold         = 5;  // how many failed tries after which we should increase the refresh interval
 	const delay_multiplier        = 2; // by how much should we inscrease the refresh interval
@@ -59,6 +59,8 @@ final class WPCOM_Liveblog {
 	 * @uses add_filter() to hook methods into WordPress filters
 	 */
 	public static function load() {
+		load_plugin_textdomain( 'liveblog', false, dirname( plugin_basename( __FILE__ ) ) . '/languages/' );
+
 		self::includes();
 		self::add_actions();
 		self::add_filters();
@@ -90,7 +92,10 @@ final class WPCOM_Liveblog {
 	 */
 	private static function add_actions() {
 		add_action( 'init',                          array( __CLASS__, 'init'              ) );
-		//add_action( 'wp_head',                       array( __CLASS__, 'wp_head'           ) );
+		add_action( 'init',                          array( __CLASS__, 'add_rewrite_rules' ) );
+		add_action( 'permalink_structure_changed',   array( __CLASS__, 'add_rewrite_rules' ) );
+		// flush the rewrite rules a lot later so that we don't interfere with other plugins using rewrite rules
+		add_action( 'init',                          array( __CLASS__, 'flush_rewrite_rules' ), 1000 );
 		add_action( 'wp_enqueue_scripts',            array( __CLASS__, 'enqueue_scripts'   ) );
 		add_action( 'wp_ajax_liveblog_insert_entry', array( __CLASS__, 'ajax_insert_entry' ) );
 		add_action( 'wp_ajax_liveblog_preview_entry', array( __CLASS__, 'ajax_preview_entry' ) );
@@ -103,7 +108,7 @@ final class WPCOM_Liveblog {
 	 */
 	private static function add_filters() {
 		add_filter( 'template_redirect', array( __CLASS__, 'handle_request'    ) );
-		add_filter( 'comment_class',     array( __CLASS__, 'add_comment_class' ) );
+		add_filter( 'comment_class',     array( __CLASS__, 'add_comment_class' ), 10, 3 );
 	}
 
 	/**
@@ -132,24 +137,23 @@ final class WPCOM_Liveblog {
 	 * taxonomies, we modify endpoints and add post type support for Liveblog.
 	 */
 	public static function init() {
-
-		self::add_rewite_rules();
-
 		/**
 		 * Add liveblog support to the 'post' post type. This is done here so
 		 * we can possibly introduce this to other post types later.
 		 */
 		add_post_type_support( 'post', self::key );
+		do_action( 'after_liveblog_init' );
 	}
 
-	public static function add_rewite_rules() {
+	public function add_rewrite_rules() {
 		add_rewrite_endpoint( self::url_endpoint, EP_PERMALINK );
+	}
 
+	public static function flush_rewrite_rules() {
 		if ( get_option( 'liveblog_rewrites_version' ) != self::rewrites_version ) {
 			flush_rewrite_rules();
 			update_option( 'liveblog_rewrites_version', self::rewrites_version );
 		}
-
 	}
 
 	/**
@@ -185,6 +189,7 @@ final class WPCOM_Liveblog {
 			wp_safe_redirect( get_permalink() );
 			exit();
 		}
+		wp_cache_delete( self::key . '_entries_asc_' . self::$post_id, 'liveblog' );
 
 		$suffix_to_method = array(
 			'\d+/\d+' => 'ajax_entries_between',
@@ -219,7 +224,7 @@ final class WPCOM_Liveblog {
 
 		// Bail if there is no end timestamp
 		if ( empty( $end_timestamp ) ) {
-			self::send_user_error( __( 'A timestamp is missing. Correct URL: <permalink>/liveblog/<from>/</to>/' ) );
+			self::send_user_error( __( 'A timestamp is missing. Correct URL: <permalink>/liveblog/<from>/</to>/', 'liveblog' ) );
 		}
 
 		// Do not cache if it's too soon
@@ -229,6 +234,8 @@ final class WPCOM_Liveblog {
 		// Get liveblog entries within the start and end boundaries
 		$entries = self::$entry_query->get_between_timestamps( $start_timestamp, $end_timestamp );
 		if ( empty( $entries ) ) {
+			do_action( 'liveblog_entry_request_empty' );
+
 			self::json_return( array(
 				'entries'           => array(),
 				'latest_timestamp'  => null
@@ -249,6 +256,8 @@ final class WPCOM_Liveblog {
 			'entries'           => $entries_for_json,
 			'latest_timestamp'  => $latest_timestamp,
 		);
+
+		do_action( 'liveblog_entry_request', $result_for_json );
 
 		self::json_return( $result_for_json );
 	}
@@ -369,6 +378,7 @@ final class WPCOM_Liveblog {
 			'comment_author_IP'    => preg_replace( '/[^0-9a-fA-F:., ]/', '',$_SERVER['REMOTE_ADDR'] ),
 			'comment_agent'        => substr( $_SERVER['HTTP_USER_AGENT'], 0, 254 ),
 		) );
+		wp_cache_delete( self::key . '_entries_asc_' . $post_id, 'liveblog' );
 
 		// Bail if comment could not be saved
 		if ( empty( $new_comment_id ) || is_wp_error( $new_comment_id ) )
@@ -377,11 +387,11 @@ final class WPCOM_Liveblog {
 		// Are we replacing an existing comment?
 		if ( !empty( $replaces_comment_id ) ) {
 
-			//
 			add_comment_meta( $new_comment_id, WPCOM_Liveblog_Entry::replaces_meta_key, $replaces_comment_id );
 
 			// Update an existing comment
 			if ( !empty( $entry_content ) ) {
+				do_action( 'liveblog_update_entry', $replaces_comment_id, $new_comment_id, $post_id );
 				wp_update_comment( array(
 					'comment_ID'      => $replaces_comment_id,
 					'comment_content' => wp_filter_post_kses( $entry_content ),
@@ -389,8 +399,11 @@ final class WPCOM_Liveblog {
 
 			// Delete this comment
 			} else {
+				do_action( 'liveblog_delete_entry', $replaces_comment_id, $post_id );
 				wp_delete_comment( $replaces_comment_id );
 			}
+		} else {
+			do_action( 'liveblog_insert_entry', $new_comment_id, $post_id );
 		}
 
 		$entry = WPCOM_Liveblog_Entry::from_comment( get_comment( $new_comment_id ) );
@@ -407,9 +420,13 @@ final class WPCOM_Liveblog {
 	function ajax_preview_entry() {
 		self::ajax_current_user_can_edit_liveblog();
 		self::ajax_check_nonce();
+
 		$entry_content = isset( $_REQUEST['entry_content'] ) ? $_REQUEST['entry_content'] : '';
-		$entry_content = wp_filter_post_kses( $entry_content );
+		$entry_content = stripslashes( wp_filter_post_kses( $entry_content ) );
 		$entry_content = WPCOM_Liveblog_Entry::render_content( $entry_content );
+
+		do_action( 'liveblog_preview_entry', $entry_content );
+
 		self::json_return( array( 'html' => $entry_content ) );
 	}
 
@@ -426,8 +443,9 @@ final class WPCOM_Liveblog {
 	 * @param array $classes
 	 * @return string
 	 */
-	public static function add_comment_class( $classes ) {
-		$classes[] = 'liveblog-entry';
+	public static function add_comment_class( $classes, $class, $comment_id ) {
+		if ( self::key == get_comment_type( $comment_id ) )
+			$classes[] = 'liveblog-entry';
 		return $classes;
 	}
 
@@ -498,7 +516,7 @@ final class WPCOM_Liveblog {
 			'url'                 => admin_url( 'admin-ajax.php', 'relative' ),
 			'flash_swf_url'       => includes_url( 'js/plupload/plupload.flash.swf' ),
 			'silverlight_xap_url' => includes_url( 'js/plupload/plupload.silverlight.xap' ),
-			'filters'             => array( array( 'title' => __( 'Allowed Files' ), 'extensions' => '*') ),
+			'filters'             => array( array( 'title' => __( 'Allowed Files', 'liveblog' ), 'extensions' => '*') ),
 			'multipart'           => true,
 			'urlstream_upload'    => true,
 			'multipart_params'    => array(
@@ -530,11 +548,12 @@ final class WPCOM_Liveblog {
 	 * @return string
 	 */
 	private static function get_entries_endpoint_url() {
-		if ( get_option( 'permalink_structure' ) )
-			$url = trailingslashit( trailingslashit( get_permalink( self::$post_id ) ) . self::url_endpoint ); // returns something like /2012/01/01/post/liveblog/
+		$post_permalink = get_permalink( self::$post_id );
+		if ( false !== strpos( $post_permalink, '?p=' ) )
+			$url = add_query_arg( self::url_endpoint, '', $post_permalink ) . '='; // returns something like ?p=1&liveblog=
 		else
-			$url = add_query_arg( self::url_endpoint, '', get_permalink( self::$post_id ) ) . '='; // returns something like ?p=1&liveblog=
-
+			$url = trailingslashit( trailingslashit( $post_permalink ) . self::url_endpoint ); // returns something like /2012/01/01/post/liveblog/
+		$url = apply_filters( 'liveblog_endpoint_url', $url, self::$post_id );
 		return $url;
 	}
 
@@ -554,6 +573,8 @@ final class WPCOM_Liveblog {
 		$liveblog_output .= '<div id="liveblog-update-spinner"></div>';
 		$liveblog_output .= self::get_all_entry_output();
 		$liveblog_output .= '</div>';
+
+		$liveblog_output = apply_filters( 'liveblog_add_to_content', $liveblog_output, $content, self::$post_id );
 
 		return $content . $liveblog_output;
 	}
@@ -641,13 +662,18 @@ final class WPCOM_Liveblog {
 		if ( empty( $_POST[self::nonce_key] ) || ! wp_verify_nonce( $_POST[self::nonce_key], self::nonce_key ) )
 			return;
 
-		// Update liveblog beta
-		if ( ! empty( $_POST['is-liveblog'] ) )
-			update_post_meta( $post_id, self::key, 1 );
+		if ( wp_is_post_revision( $post_id ) )
+			return;
 
-		// Delete liveblog meta
-		else
+		$is_liveblog = self::is_liveblog_post( $post_id );
+
+		if ( ! empty( $_POST['is-liveblog'] ) && ! $is_liveblog ) {
+			update_post_meta( $post_id, self::key, 1 );
+			do_action( 'liveblog_enable_post', $post_id );
+		} elseif ( empty( $_POST['is-liveblog'] ) && $is_liveblog ) {
 			delete_post_meta( $post_id, self::key );
+			do_action( 'liveblog_disable_post', $post_id );
+		}
 	}
 
 	/** Error Methods *********************************************************/

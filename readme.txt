@@ -3,7 +3,7 @@ Contributors: automattic, nbachiyski, batmoo, johnjamesjacoby
 Tags: liveblog
 Requires at least: 3.4.1
 Tested up to: 3.5
-Stable tag: 1.1
+Stable tag: 1.2
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -26,7 +26,7 @@ Here’s what makes it special:
  * Your authors can drag-and-drop photos right into the Liveblog area, without needing to navigate to separate browser tabs or windows.
  * There’s no need for a separate site dedicated to liveblogging: *every* post can be a liveblog, even existing ones.
 
-If you'd like to check out the code and contribute, [join us on github](htts://github.com/Automattic/liveblog), pull requests are more than welcome.
+If you'd like to check out the code and contribute, [join us on github](https://github.com/Automattic/liveblog), pull requests are more than welcome.
 
 == Installation ==
 
@@ -46,6 +46,26 @@ If you'd like to check out the code and contribute, [join us on github](htts://g
 8. Typical liveblog view
 
 == Changelog ==
+
+= 1.2 =
+
+New functionality:
+
+* Introduce many new hooks and filters, which help customization without changing the plugin code.
+* Allow shortcodes and OEmbed in liveblog entries
+* Translations:
+	- Spanish by [@elarequi](http://profiles.wordpress.org/elarequi)
+	- Dutch by [@defries](https://github.com/defries)
+	- Catalan by [@gasparappa](https://github.com/gasparappa)
+	- German by [@cfoellmann](https://github.com/cfoellmann)
+* Add github-friendly version of `readme.txt`
+* Optimize PNG files
+
+Fixed problems:
+
+* Fix JavaScript errors on IE8, props [@pippercameron](https://github.com/pippercameron)
+* Fix preview tab
+* Compatibility with plupload 1.5.4, props [@borkweb](https://github.com/borkweb)
 
 = 1.1 =
 * Backwards compatibility for 3.4
