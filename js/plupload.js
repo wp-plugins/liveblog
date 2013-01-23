@@ -3,18 +3,35 @@ jQuery(document).ready(function($) {
 
 		/* Selectors */
 		browser: '#liveblog-messages',
-		dropzone: '#liveblog-form-entry',
+		dropzone: '#liveblog-container',
 
 		/* Callbacks */
 		success  : function( upload ) {
-			var url = upload.attributes.url || upload.url,
-				filename = upload.attributes.filename || upload.filename;
-			
-			$( '#liveblog-form-entry' ).val( $( '#liveblog-form-entry' ).val() + '<img src="' + url + '" />' );
+			var url,
+				filename = upload.attributes? upload.attributes.filename : upload.filename,
+				$form = $( '.liveblog-form-entry' ),
+				entry_text = $form.val();
+
+			if ( upload.attributes ) {
+				if ( upload.attributes.sizes && upload.attributes.sizes.large )
+					url = upload.attributes.sizes.large.url;
+				else
+					url = upload.attributes.url;
+			} else {
+				url = upload.url;
+			}
+
+			if ( entry_text )
+				entry_text += "\n";
+			entry_text += url + "\n";
+
+			$form.val( entry_text );
 			$( '#liveblog-messages' ).html( filename + ' Finished' );
 			$( '#liveblog-actions' ).removeClass( 'uploading' );
+
+			$form.focus();
 		},
- 
+
 		error    : function ( reason ) {
 			$( '#liveblog-messages' ).html( reason );
 		},
@@ -27,7 +44,7 @@ jQuery(document).ready(function($) {
 			var filename, percent;
 
 			if ( 'undefined' === typeof( file ) )
-				file = upload.attributes.file;
+				file = upload.attributes? upload.attributes.file : upload.file;
 
 			if( 'undefined' === typeof( file ) )
 				return;

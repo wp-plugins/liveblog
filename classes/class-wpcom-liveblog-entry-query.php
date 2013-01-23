@@ -1,14 +1,11 @@
 <?php
 
 /**
- * The main Liveblog entry query class
+ * Responsible for querying the Liveblog entries.
  *
- * This class is responsible for querying the Liveblog entries. Much of the
- * work is currently done by WordPress's comments API.
+ * Much of the work is currently done by WordPress's comments API.
  */
 class WPCOM_Liveblog_Entry_Query {
-
-	var $wp_has_comment_approved_query_support = false;
 
 	/**
 	 * Set the post ID and key when a new object is created
@@ -20,20 +17,13 @@ class WPCOM_Liveblog_Entry_Query {
 		global $wp_version;
 		$this->post_id = $post_id;
 		$this->key     = $key;
-
-		$this->wp_has_comment_approved_query_support = version_compare( $wp_version, '3.5-alpha-21548' ) > 0;
-
-		if ( !$this->wp_has_comment_approved_query_support ) {
-			add_filter( 'comments_clauses', array( $this, '_comments_clauses' ) );
-		}
-
 	}
 
 	/**
 	 * Get the liveblog entries
 	 *
-	 * @param array $args
-	 * @return array()
+	 * @param array $args the same args for the core `get_comments()`.
+	 * @return array array of `WPCOM_Liveblog_Entry` objects with the found entries
 	 */
 	private function get( $args = array() ) {
 		$defaults = array(
@@ -41,11 +31,6 @@ class WPCOM_Liveblog_Entry_Query {
 			'orderby' => 'comment_date_gmt',
 			'order'   => 'DESC',
 			'type'    => $this->key,
-			/*
-			 * Even if the WordPress is 3.4 and doesn't support querying
-			 * arbitrary statuses, we include it so that it can be part of
-			 * the cache key
-			 */
 			'status'  => $this->key,
 		);
 
@@ -58,11 +43,20 @@ class WPCOM_Liveblog_Entry_Query {
 	/**
 	 * Get all of the liveblog entries
 	 *
-	 * @param array $args
+	 * @param array $args the same args for the core `get_comments()`
 	 * @return array
 	 */
 	public function get_all( $args = array() ) {
-		return self::filter_liveblog_entries( $this->get( $args ) );
+		return self::remove_replaced_entries( $this->get( $args ) );
+	}
+
+	public function get_by_id( $id ) {
+		$comment = get_comment( $id );
+		if ( $comment->comment_post_ID != $this->post_id || $comment->comment_type != $this->key || $comment->comment_approved != $this->key) {
+			return null;
+		}
+		$entries = self::entries_from_comments( array( $comment ) );
+		return $entries[0];
 	}
 
 	/**
@@ -104,13 +98,6 @@ class WPCOM_Liveblog_Entry_Query {
 		return $latest->get_timestamp();
 	}
 
-	/**
-	 * Get the entries between two timestamps
-	 *
-	 * @param int $start_timestamp
-	 * @param int $end_timestamp
-	 * @return array()
-	 */
 	public function get_between_timestamps( $start_timestamp, $end_timestamp ) {
 		$entries_between = array();
 		$all_entries = $this->get_all_entries_asc();
@@ -121,7 +108,11 @@ class WPCOM_Liveblog_Entry_Query {
 			}
 		}
 
-		return self::filter_liveblog_entries( $entries_between );
+		return self::remove_replaced_entries( $entries_between );
+	}
+
+	public function has_any() {
+		return (bool)$this->get();
 	}
 
 	private function get_all_entries_asc() {
@@ -153,21 +144,19 @@ class WPCOM_Liveblog_Entry_Query {
 	}
 
 	/**
-	 * Filter entries by some specific criteria
+	 * Filter out entries, which have been replaced by other entries in
+	 * the same set.
 	 *
 	 * @param array $entries
 	 * @return array
 	 */
-	public static function filter_liveblog_entries( $entries = array() ) {
+	public static function remove_replaced_entries( $entries = array() ) {
 
-		// Bail if no entries
 		if ( empty( $entries ) )
 			return $entries;
 
-		// Get the entry ID's
-		$entries_by_id = self::key_by_get_id( $entries );
+		$entries_by_id = self::assoc_array_by_id( $entries );
 
-		// Loop through ID's and unset any that should be filtered out
 		foreach ( (array) $entries_by_id as $id => $entry ) {
 			if ( !empty( $entry->replaces ) && isset( $entries_by_id[$entry->replaces] ) ) {
 				unset( $entries_by_id[$id] );
@@ -177,41 +166,12 @@ class WPCOM_Liveblog_Entry_Query {
 		return $entries_by_id;
 	}
 
-	/**
-	 * Get liveblog entry key ID's
-	 *
-	 * @param array $entries
-	 * @return array
-	 */
-	public static function key_by_get_id( $entries ) {
+	public static function assoc_array_by_id( $entries ) {
 		$result = array();
 
 		foreach ( (array) $entries as $entry )
 			$result[$entry->get_id()] = $entry;
 
 		return $result;
-	}
-
-	/**
-	 * Filter the comments query to include the special comment_approved status.
-	 * Required for backwards-compatibility with 3.4.x
-	 *
-	 * @param array $clauses
-	 * @return array
-	 */
-	public function _comments_clauses( $clauses = array() ) {
-		global $wpdb;
-
-		// Setup the search clauses
-		$needle   = $wpdb->prepare( "comment_type = %s", $this->key );
-		$haystack = !empty( $clauses['where'] ) ? $clauses['where'] : '';
-
-		// Bail if not a liveblog query
-		if ( ! strstr( $haystack, $needle ) )
-			return $clauses;
-
-		$clauses['where'] = $wpdb->prepare( "comment_approved = %s AND comment_post_ID = %d AND comment_type = %s", $this->key, $this->post_id, $this->key );
-
-		return $clauses;
 	}
 }

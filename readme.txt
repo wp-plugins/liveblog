@@ -1,9 +1,9 @@
 === Liveblog ===
 Contributors: automattic, nbachiyski, batmoo, johnjamesjacoby
 Tags: liveblog
-Requires at least: 3.4.1
+Requires at least: 3.5
 Tested up to: 3.5
-Stable tag: 1.2
+Stable tag: 1.3
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -32,20 +32,37 @@ If you'd like to check out the code and contribute, [join us on github](https://
 
 1. Upload the `liveblog` folder to your plugins directory (e.g. `/wp-content/plugins/`)
 2. Activate the plugin through the 'Plugins' menu in WordPress
-3. Check the "This post is a liveblog" checkbox on a post edit page to make it a liveblog
+3. You can enable the liveblog on any post's edit page
 
 == Screenshots ==
 
 1. The entry form is the simplest possible
 2. Writers can preview before posting
-3. The user sees that there are new posts
 4. New posts are highlighted
 5. Adding images is a matter of just drag-and-drop
 6. Dragged photos are automatically inserted
-7. Any post can be turned into a liveblog
 8. Typical liveblog view
 
 == Changelog ==
+
+= 1.3 =
+
+**The liveblog plugin now requires WordPress 3.5.**
+
+New functionality:
+
+* Liveblog archiving
+* Shows automatically new entries, with a slick notification bar if we have scrolled out of view. With the help of [@borkweb](https://github.com/borkweb) and [@zbtirrell](https://github.com/zbtirrell)
+* Front-end editing
+* Pasting an image URL embeds the image
+
+Translations:
+
+* German by [@cfoellmann](https://github.com/cfoellmann)
+* Spanish by [@elarequi](http://profiles.wordpress.org/elarequi)
+
+Also a lot of internal improvements and bug fixes. See the [full list of
+closed issues](https://github.com/Automattic/liveblog/issues?milestone=3&state=closed).
 
 = 1.2 =
 

@@ -58,7 +58,7 @@ class Test_Entry_Query extends WP_UnitTestCase {
 		$this->assertEquals( 0, count( $entries ) );
 	}
 
-	function test_filter_liveblog_entries_should_remove_entries_replacing_other_entries() {
+	function test_remove_replaced_entries_should_remove_entries_replacing_other_entries() {
 		$entries = array();
 
 		$entries[0] = new WPCOM_Liveblog_Entry( (object)array( 'comment_ID' => 1 ) );
@@ -66,11 +66,11 @@ class Test_Entry_Query extends WP_UnitTestCase {
 		$entries[1] = new WPCOM_Liveblog_Entry( (object)array( 'comment_ID' => 1000 ) );
 		$entries[1]->replaces = 1;
 
-		$filtered_entries =  WPCOM_Liveblog_Entry_Query::filter_liveblog_entries( $entries );
+		$filtered_entries =  WPCOM_Liveblog_Entry_Query::remove_replaced_entries( $entries );
 		$this->assertEquals( array( 1 ), $this->get_ids_from_entries( $filtered_entries ) );
 	}
 
-	function test_filter_liveblog_entries_should_not_remove_entries_replacing_non_existing_entries() {
+	function test_remove_replaced_entries_should_not_remove_entries_replacing_non_existing_entries() {
 		$entries = array();
 
 		$entries[0] = new WPCOM_Liveblog_Entry( (object)array( 'comment_ID' => 1 ) );
@@ -78,8 +78,28 @@ class Test_Entry_Query extends WP_UnitTestCase {
 		$entries[1] = new WPCOM_Liveblog_Entry( (object)array( 'comment_ID' => 1000 ) );
 		$entries[1]->replaces = 999;
 
-		$filtered_entries =  WPCOM_Liveblog_Entry_Query::filter_liveblog_entries( $entries );
+		$filtered_entries =  WPCOM_Liveblog_Entry_Query::remove_replaced_entries( $entries );
 		$this->assertEquals( array( 1, 1000 ), $this->get_ids_from_entries( $filtered_entries ) );
+	}
+
+	function test_get_by_id_should_return_the_entry() {
+		$comment_id = $this->create_comment();
+		$this->assertEquals( $comment_id, $this->entry_query->get_by_id( $comment_id )->get_id() );
+	}
+
+	function test_get_by_id_should_not_return_entries_for_trashed_comments() {
+		$comment_id = $this->create_comment();
+		wp_delete_comment( $comment_id );
+		$this->assertNull( $this->entry_query->get_by_id( $comment_id ) );
+	}
+
+	function test_has_any_returns_false_if_no_entries() {
+		$this->assertFalse( $this->entry_query->has_any() );
+	}
+
+	function test_has_any_returns_true_if_we_add_some_entries() {
+		$this->create_comment();
+		$this->assertTrue( $this->entry_query->has_any() );
 	}
 
 	private function create_comment( $args = array() ) {
