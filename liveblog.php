@@ -4,7 +4,7 @@
  * Plugin Name: Liveblog
  * Plugin URI: http://wordpress.org/extend/plugins/liveblog/
  * Description: Blogging: at the speed of live.
- * Version:     1.3
+ * Version:     1.3.1
  * Author:      WordPress.com VIP, Automattic
  * Author URI: http://vip.wordpress.com/
  * Text Domain: liveblog
@@ -55,6 +55,7 @@ final class WPCOM_Liveblog {
 	private static $post_id               = null;
 	private static $entry_query           = null;
 	private static $do_not_cache_response = false;
+	private static $custom_template_path  = null;
 
 	/** Load Methods **********************************************************/
 
@@ -73,7 +74,20 @@ final class WPCOM_Liveblog {
 		self::add_actions();
 		self::add_filters();
 		self::add_admin_actions();
+		self::add_admin_filters();
 		self::register_embed_handlers();
+	}
+
+	public static function add_custom_post_type_support( $query ) {
+		if ( ! self::is_entries_ajax_request() )
+			return;
+
+		$post_types = array_filter( get_post_types(), array( __CLASS__, 'liveblog_post_type' ) );
+		$query->set( 'post_type', $post_types );
+	}
+
+	public static function liveblog_post_type( $post_type ) {
+		return post_type_supports( $post_type, self::key );
 	}
 
 	private static function add_old_wp_notice() {
@@ -118,6 +132,7 @@ final class WPCOM_Liveblog {
 		add_action( 'wp_enqueue_scripts',            array( __CLASS__, 'enqueue_scripts'   ) );
 		add_action( 'admin_enqueue_scripts',         array( __CLASS__, 'admin_enqueue_scripts'   ) );
 		add_action( 'wp_ajax_set_liveblog_state_for_post', array( __CLASS__, 'admin_ajax_set_liveblog_state_for_post' ) );
+		add_action( 'pre_get_posts',                 array( __CLASS__, 'add_custom_post_type_support' ) );
 	}
 
 	/**
@@ -128,6 +143,7 @@ final class WPCOM_Liveblog {
 	private static function add_filters() {
 		add_filter( 'template_redirect', array( __CLASS__, 'handle_request'    ) );
 		add_filter( 'comment_class',     array( __CLASS__, 'add_comment_class' ), 10, 3 );
+		add_filter( 'is_protected_meta', array( __CLASS__, 'protect_liveblog_meta_key'	 ), 10, 2 );		
 	}
 
 	/**
@@ -142,7 +158,25 @@ final class WPCOM_Liveblog {
 		if ( ! is_admin() )
 			return;
 
-		add_action( 'add_meta_boxes', array( __CLASS__, 'add_meta_box'  ) );
+		add_action( 'add_meta_boxes',        array( __CLASS__, 'add_meta_box'  ) );
+		add_action( 'restrict_manage_posts', array( __CLASS__, 'add_post_filtering_dropdown_to_manage_posts' ) );
+		add_action( 'pre_get_posts',         array( __CLASS__, 'handle_query_vars_for_post_filtering' ) );
+	}
+
+	/**
+	 * Hook filters in that run on every admin page-load
+	 *
+	 * @uses add_filter()
+	 * @uses is_admin()
+	 */
+	private static function add_admin_filters() {
+
+		// Bail if not in admin area
+		if ( ! is_admin() )
+			return;
+
+		add_filter( 'display_post_states', array( __CLASS__, 'add_display_post_state' ), 10, 2 );
+		add_filter( 'query_vars',          array( __CLASS__, 'add_query_var_for_post_filtering' ) );
 	}
 
 	private static function register_embed_handlers() {
@@ -168,7 +202,7 @@ final class WPCOM_Liveblog {
 		do_action( 'after_liveblog_init' );
 	}
 
-	public function add_rewrite_rules() {
+	public static function add_rewrite_rules() {
 		add_rewrite_endpoint( self::url_endpoint, EP_PERMALINK );
 	}
 
@@ -194,12 +228,25 @@ final class WPCOM_Liveblog {
 			return;
 
 		self::$post_id     = get_the_ID();
+
+		self::$custom_template_path = apply_filters( 'liveblog_template_path', self::$custom_template_path, self::$post_id );
+		if( ! is_dir( self::$custom_template_path ) ) {
+			self::$custom_template_path = null;
+		} else {
+			// realpath is used here to ensure we have an absolute path which is necessary to avoid APC related bugs
+			self::$custom_template_path = untrailingslashit( realpath( self::$custom_template_path ) );
+		}
+
 		self::$entry_query = new WPCOM_Liveblog_Entry_Query( self::$post_id, self::key );
 
-		if ( self::is_initial_page_request() )
-			add_filter( 'the_content', array( __CLASS__, 'add_liveblog_to_content' ) );
-		else
+		if ( self::is_initial_page_request() ) {
+			// we need to add the liveblog after the shortcodes are run, because we already
+			// process shortcodes in the comment contents and if we left any (like in the original content)
+			// we wouldn't like them to be processed
+			add_filter( 'the_content', array( __CLASS__, 'add_liveblog_to_content' ), 20 );
+		} else {
 			self::handle_ajax_request();
+		}
 	}
 
 	private static function handle_ajax_request() {
@@ -410,7 +457,7 @@ final class WPCOM_Liveblog {
 		) );
 	}
 
-	function ajax_preview_entry() {
+	public static function ajax_preview_entry() {
 		$entry_content = isset( $_REQUEST['entry_content'] ) ? $_REQUEST['entry_content'] : '';
 		$entry_content = stripslashes( wp_filter_post_kses( $entry_content ) );
 		$entry_content = WPCOM_Liveblog_Entry::render_content( $entry_content );
@@ -420,7 +467,7 @@ final class WPCOM_Liveblog {
 		self::json_return( array( 'html' => $entry_content ) );
 	}
 
-	public function ajax_unknown() {
+	public static function ajax_unknown() {
 		self::send_user_error( __( 'Unknown liveblog action', 'liveblog' ) );
 	}
 
@@ -466,7 +513,7 @@ final class WPCOM_Liveblog {
 		wp_localize_script( 'moment', 'momentLang', array(
 			'locale' => get_locale(),
 			'relativeTime' => array(
-				'past' => __( '%s ago' ),
+				'past' => __( '%s ago', 'liveblog' ),
 				's' => __( 'a few seconds', 'liveblog' ),
 				'm' => __( 'a minute', 'liveblog' ),
 				'mm' => __( '%d minutes', 'liveblog' ),
@@ -484,6 +531,9 @@ final class WPCOM_Liveblog {
 		wp_enqueue_script( self::key, plugins_url( 'js/liveblog.js', __FILE__ ), array( 'jquery', 'jquery-color', 'backbone', 'jquery-throttle', 'moment' ), self::version, true );
 
 		if ( self::is_liveblog_editable() )  {
+			if ( apply_filters( 'liveblog_rich_text_editing_allowed', true ) ) {
+				wp_enqueue_script( 'editor' );
+			}
 			wp_enqueue_script( 'liveblog-publisher', plugins_url( 'js/liveblog-publisher.js', __FILE__ ), array( self::key ), self::version, true );
 			wp_enqueue_script( 'liveblog-plupload', plugins_url( 'js/plupload.js', __FILE__ ), array( self::key, 'wp-plupload', 'jquery' ) );
 			self::add_default_plupload_settings();
@@ -492,8 +542,8 @@ final class WPCOM_Liveblog {
 		if ( wp_script_is( 'jquery.spin', 'registered' ) ) {
 			wp_enqueue_script( 'jquery.spin' );
 		} else {
-			wp_enqueue_script( 'spin',        plugins_url( 'js/spin.js',        __FILE__ ), false,                    '1.2.4' );
-			wp_enqueue_script( 'jquery.spin', plugins_url( 'js/jquery.spin.js', __FILE__ ), array( 'jquery', 'spin' )         );
+			wp_enqueue_script( 'spin',        plugins_url( 'js/spin.js',        __FILE__ ), false,                     '1.3' );
+			wp_enqueue_script( 'jquery.spin', plugins_url( 'js/jquery.spin.js', __FILE__ ), array( 'jquery', 'spin' ), '1.3' );
 		}
 
 		wp_localize_script( self::key, 'liveblog_settings',
@@ -516,11 +566,12 @@ final class WPCOM_Liveblog {
 				'endpoint_url'           => self::get_entries_endpoint_url(),
 
 				// i18n
-				'delete_confirmation'    => __( 'Do you really want do delete this entry? There is no way back.', 'liveblog' ),
+				'delete_confirmation'    => __( 'Do you really want to delete this entry? There is no way back.', 'liveblog' ),
 				'error_message_template' => __( 'Error {error-code}: {error-message}', 'liveblog' ),
 				'short_error_message_template' => __( 'Error: {error-message}', 'liveblog' ),
 				'new_update'             => __( 'Liveblog: {number} new update' , 'liveblog'),
 				'new_updates'            => __( 'Liveblog: {number} new updates' , 'liveblog'),
+				'create_link_prompt'     => __( 'Provide URL for link:', 'liveblog' )
 			) )
 		);
 		wp_localize_script( 'liveblog-publisher', 'liveblog_publisher_settings', array(
@@ -600,6 +651,12 @@ final class WPCOM_Liveblog {
 	 */
 	 public static function add_liveblog_to_content( $content ) {
 
+		// We don't want to add the liveblog to other loops
+		// on the same page
+		if ( ! self::is_viewing_liveblog_post() ) {
+			return $content;
+		}
+
 		$liveblog_output  = '<div id="liveblog-container" class="'. self::$post_id .'">';
 		$liveblog_output .= self::get_editor_output();
 		$liveblog_output .= '<div id="liveblog-update-spinner"></div>';
@@ -628,9 +685,17 @@ final class WPCOM_Liveblog {
 	 */
 	private static function get_all_entry_output() {
 
-		// Get liveblog entries
-		$entries = (array) self::$entry_query->get_all();
-		$show_archived_message = 'archive' == self::get_liveblog_state() && self::current_user_can_edit_liveblog();
+		// Get liveblog entries.
+		$args = array();
+		$state = self::get_liveblog_state();
+
+		if ( 'archive' == $state ) {
+			$args['order'] = 'ASC';
+		}
+
+		$args = apply_filters( 'liveblog_display_archive_query_args', $args, $state );
+		$entries = (array) self::$entry_query->get_all( $args );
+		$show_archived_message = 'archive' == $state && self::current_user_can_edit_liveblog();
 
 		// Get the template part
 		return self::get_template_part( 'liveblog-loop.php', compact( 'entries', 'show_archived_message' ) );
@@ -645,7 +710,11 @@ final class WPCOM_Liveblog {
 	public static function get_template_part( $template_name, $template_variables = array() ) {
 		ob_start();
 		extract( $template_variables );
-		include( dirname( __FILE__ ) . '/templates/' . $template_name );
+		if( self::$custom_template_path && file_exists( self::$custom_template_path . '/' . $template_name ) ) {
+			include( self::$custom_template_path . '/' . $template_name );
+		} else {
+			include( dirname( __FILE__ ) . '/templates/' . $template_name );
+		}
 		return ob_get_clean();
 	}
 
@@ -693,7 +762,7 @@ final class WPCOM_Liveblog {
 		echo self::get_template_part( 'meta-box.php', compact( 'active_text', 'buttons' ) );
 	}
 
-	public function admin_ajax_set_liveblog_state_for_post() {
+	public static function admin_ajax_set_liveblog_state_for_post() {
 		$post_id = isset( $_REQUEST['post_id'] )? $_REQUEST['post_id'] : 0;
 		$new_state = isset( $_REQUEST['state'] )? $_REQUEST['state'] : '';
 
@@ -713,7 +782,7 @@ final class WPCOM_Liveblog {
 		exit;
 	}
 
-	private function set_liveblog_state( $post_id, $state ) {
+	private static function set_liveblog_state( $post_id, $state ) {
 		if ( in_array( $state, array( 'enable', 'archive' ) ) ) {
 			update_post_meta( $post_id, self::key, $state );
 			do_action( "liveblog_{$state}_post", $post_id );
@@ -725,6 +794,102 @@ final class WPCOM_Liveblog {
 		}
 	}
 
+	/**
+	 * Indicate in the post list that a post is a liveblog
+	 *
+	 * @param array $post_states
+	 * @param mixed $post
+	 * @return array
+	 * @filter display_post_states
+	 */
+	public static function add_display_post_state( $post_states, $post = null ) {
+		if ( is_null( $post ) ) {
+			$post = get_post();
+		}
+		if ( self::is_liveblog_post( $post->ID ) ) {
+			$liveblog_state = self::get_liveblog_state( $post->ID );
+			if ( 'enable' === $liveblog_state ) {
+				$post_states[] = __( 'Liveblog', 'liveblog' );
+			}
+			else if ( 'archive' === $liveblog_state ) {
+				$post_states[] = __( 'Liveblog (archived)', 'liveblog' );
+			}
+		}
+		return $post_states;
+	}
+
+	/**
+	 * Register the query_var for filtering posts by liveblog state
+	 *
+	 * @param array $query_vars
+	 * @return array
+	 * @filter query_vars
+	 */
+	public static function add_query_var_for_post_filtering( $query_vars ) {
+		$query_vars[] = 'liveblog_state';
+		return $query_vars;
+	}
+
+	/**
+	 * Render the liveblog state select to filter posts in the post table
+	 *
+	 * @action restrict_manage_posts
+	 */
+	public static function add_post_filtering_dropdown_to_manage_posts() {
+		$current_screen = get_current_screen();
+		if ( ! post_type_supports( $current_screen->post_type, self::key ) ) {
+			return;
+		}
+
+		$options = array(
+			'' => __( 'Filter liveblogs', 'liveblog' ),
+			'any' => __( 'Any liveblogs', 'liveblog' ),
+			'enable' => __( 'Enabled liveblogs', 'liveblog' ),
+			'archive' => __( 'Archived liveblogs', 'liveblog' ),
+			'none' => __( 'No liveblogs', 'liveblog' ),
+		);
+		echo self::get_template_part( 'restrict-manage-posts.php', compact( 'options' ) );
+	}
+
+	/**
+	 * Translate the liveblog_state query_var into a meta_query
+	 *
+	 * @param WP_Query $query
+	 */
+	public static function handle_query_vars_for_post_filtering( $query ) {
+		if ( ! $query->is_main_query() ) {
+			return;
+		}
+		$state = $query->get( 'liveblog_state' );
+		if ( 'any' === $state ) {
+			$new_meta_query_clause = array(
+				'key' => self::key,
+				'compare' => 'EXISTS',
+			);
+		}
+		else if ( 'none' === $state ) {
+			$new_meta_query_clause = array(
+				'key' => self::key,
+				'compare' => 'NOT EXISTS',
+			);
+		}
+		else if ( in_array( $state, array( 'enable', 'archive' ) ) ) {
+			$new_meta_query_clause = array(
+				'key' => self::key,
+				'value' => $state,
+			);
+		}
+
+		if ( isset( $new_meta_query_clause ) ) {
+			$meta_query = $query->get( 'meta_query' );
+			if ( empty( $meta_query ) ) {
+				$meta_query = array();
+			}
+			array_push( $meta_query, $new_meta_query_clause );
+			$query->set( 'meta_query', $meta_query );
+		}
+	}
+
 	/** Error Methods *********************************************************/
 
 	/**
@@ -733,7 +898,8 @@ final class WPCOM_Liveblog {
 	 * @return bool
 	 */
 	public static function current_user_can_edit_liveblog() {
-		return (bool) current_user_can( apply_filters( 'liveblog_edit_cap', self::edit_cap ) );
+		$retval = current_user_can( apply_filters( 'liveblog_edit_cap', self::edit_cap ) );
+		return (bool) apply_filters( 'liveblog_current_user_can_edit_liveblog', $retval );
 	}
 
 	public static function is_liveblog_editable() {
@@ -811,12 +977,35 @@ final class WPCOM_Liveblog {
 
 		$status                     = absint( $status );
 		$official_message           = isset( $wp_header_to_desc[$status] ) ? $wp_header_to_desc[$status] : '';
-		$wp_header_to_desc[$status] = $message;
+		$wp_header_to_desc[$status] = self::sanitize_http_header( $message );
 
 		status_header( $status );
 
 		$wp_header_to_desc[$status] = $official_message;
 	}
+
+	/**
+	 * Removes newlines from headers
+	 *
+	 * The only forbidden value in a header is a newline. PHP has a safe
+	 * guard against header splitting, but it doesn't set the header at all.
+	 */
+	public static function sanitize_http_header( $text ) {
+		return str_replace( array( "\n", "\r", chr( 0 ) ), '', $text );
+	}
+
+	/**
+	 * Hide meta key from being edited from users
+	 * @param  Boolean $protected
+	 * @param  String $meta_key
+	 * @return Boolean
+	 */
+	public static function protect_liveblog_meta_key( $protected, $meta_key ) {
+		if ( self::key === $meta_key )
+			return true;
+		
+		return $protected;
+	}	
 
 	/** Plupload Helpers ******************************************************/
 
@@ -871,18 +1060,15 @@ final class WPCOM_Liveblog {
 
 	private static function is_wp_too_old() {
 		global $wp_version;
+		// if WordPress is loaded in a function the version variables aren't globalized
+		// see: http://core.trac.wordpress.org/ticket/17749#comment:40
+		if ( !isset( $wp_version ) || !$wp_version ) {
+			return false;
+		}
 		return version_compare( $wp_version, self::min_wp_version, '<' );
 	}
 }
 
-/**
- * Load the one true WPCOM_Liveblog instance
- *
- * Loaded late on the 'plugins_loaded' hook to allow any other plugin to sneak
- * in ahead of it, to add actions, filters, etc...
- *
- * @uses WPCOM_Liveblog::load()
- */
 function wpcom_liveblog_load() {
 	WPCOM_Liveblog::load();
 }
