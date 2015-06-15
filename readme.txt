@@ -49,6 +49,11 @@ If you'd like to check out the code and contribute, [join us on github](https://
 
 = 1.4 =
 
+* Bump tested tag to 4.2.2.
+* Added Composer support!
+
+= 1.4 =
+
 * Rich-text editing!
 * Archived liveblogs now display in chronological order (live ones show reverse chron)
 * New and udpated translations
